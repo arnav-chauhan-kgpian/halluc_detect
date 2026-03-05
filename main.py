@@ -52,7 +52,7 @@ def main():
         temperature=args.temperature,
         top_p=args.top_p,
         do_sample=not args.no_sample,
-        dataset_name="allenai/WildChat-1M",
+        dataset_name="allenai/WildChat-4.8M-Full",
         dataset_split="train",
         max_queries=args.max_queries,
         language_filter=args.language,
