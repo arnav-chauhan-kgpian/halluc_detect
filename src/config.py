@@ -28,7 +28,7 @@ class ModelConfig:
 class DataConfig:
     """Configuration for the WildChat dataset."""
 
-    dataset_name: str = "allenai/WildChat-1M"
+    dataset_name: str = "allenai/WildChat-4.8M-Full"
     split: str = "train"
     # Number of queries to process (pilot: 1K-5K)
     num_queries: int = 2000
