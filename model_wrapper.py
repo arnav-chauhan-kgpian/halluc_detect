@@ -49,10 +49,15 @@ class Qwen3Wrapper:
 
     @torch.no_grad()
     def generate(self, query: str) -> GenerationOutput:
-        """Generate a response for *query* and return text + hidden states."""
+        """Generate a response and extract hidden states via two-pass approach.
+
+        Pass 1 – Fast autoregressive generation (full KV-cache, no hidden-state overhead).
+        Pass 2 – Single forward pass on the complete sequence to capture all-layer hidden states.
+        """
         input_ids, attention_mask = self._prepare_input(query)
         prompt_len = input_ids.shape[1]
 
+        # ── Pass 1: generate (fast) ───────────────────────────────────
         outputs = self.model.generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -60,16 +65,14 @@ class Qwen3Wrapper:
             do_sample=self.cfg.do_sample,
             temperature=self.cfg.temperature,
             top_p=self.cfg.top_p,
-            output_hidden_states=True,
-            return_dict_in_generate=True,
         )
 
-        # Decode only the newly generated tokens
-        gen_ids = outputs.sequences[0, prompt_len:]
+        full_seq = outputs[0]  # (total_len,)
+        gen_ids = full_seq[prompt_len:]
         response_text = self.tokenizer.decode(gen_ids, skip_special_tokens=True)
 
-        # Extract per-token hidden states across all layers
-        hidden_states = self._extract_hidden_states(outputs.hidden_states)
+        # ── Pass 2: single forward pass for hidden states ─────────────
+        hidden_states = self._extract_hidden_states(full_seq.unsqueeze(0), prompt_len)
 
         return GenerationOutput(
             response_text=response_text,
@@ -110,33 +113,32 @@ class Qwen3Wrapper:
         return encoded.input_ids.to(device), encoded.attention_mask.to(device)
 
     def _extract_hidden_states(
-        self, raw_hidden_states: tuple
+        self, full_seq: torch.Tensor, prompt_len: int
     ) -> torch.Tensor:
-        """Collapse the nested generate() hidden-state tuples into a single tensor.
+        """Run a single forward pass on the complete sequence and return
+        hidden states for the *generated* tokens only.
 
-        ``raw_hidden_states`` structure (from ``generate``):
-        - Tuple of length ``num_generation_steps``.
-        - Each element is a tuple of ``(num_layers + 1)`` tensors.
-          * Step 0 (prefill):  each tensor shape ``(batch, prompt_len, hidden_dim)``
-          * Step i > 0 (decode): each tensor shape ``(batch, 1, hidden_dim)``
+        Args:
+            full_seq: (1, total_len) – prompt + generated token ids.
+            prompt_len: number of prompt tokens to skip.
 
         Returns:
             Tensor of shape ``(num_generated_tokens, num_layers + 1, hidden_dim)``
             stored in ``cfg.save_torch_dtype`` on CPU.
         """
-        per_token: list[torch.Tensor] = []
+        fwd_out = self.model(
+            input_ids=full_seq,
+            output_hidden_states=True,
+        )
 
-        for step_states in raw_hidden_states:
-            # step_states: tuple of (num_layers+1) tensors
-            layers = []
-            for layer_tensor in step_states:
-                # Take last position along seq-len dim (works for both prefill & decode)
-                token_vec = layer_tensor[0, -1, :]  # (hidden_dim,)
-                layers.append(token_vec)
-            # Stack across layers → (num_layers+1, hidden_dim)
-            per_token.append(torch.stack(layers))
+        # fwd_out.hidden_states: tuple of (num_layers+1) tensors,
+        # each of shape (1, total_len, hidden_dim)
+        # Stack → (num_layers+1, num_gen_tokens, hidden_dim), then transpose
+        all_layers = torch.stack(
+            [layer[0, prompt_len:, :] for layer in fwd_out.hidden_states]
+        )  # (num_layers+1, num_gen_tokens, hidden_dim)
 
-        # (num_generated_tokens, num_layers+1, hidden_dim)
-        all_hidden = torch.stack(per_token)
+        # Transpose to (num_gen_tokens, num_layers+1, hidden_dim)
+        result = all_layers.transpose(0, 1).contiguous()
 
-        return all_hidden.to(dtype=self.cfg.save_torch_dtype, device="cpu")
+        return result.to(dtype=self.cfg.save_torch_dtype, device="cpu")
