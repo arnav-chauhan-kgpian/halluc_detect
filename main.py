@@ -12,7 +12,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Generate Qwen3-8B responses + hidden states for WildChat queries."
     )
-    p.add_argument("--model", default="Qwen/Qwen3-8B-Instruct", help="HF model id")
+    p.add_argument("--model", default="Qwen/Qwen3-8B", help="HF model id")
     p.add_argument("--max-queries", type=int, default=5000, help="Max queries to process")
     p.add_argument("--max-new-tokens", type=int, default=500, help="Max generation length")
     p.add_argument("--output-dir", type=Path, default=Path("output"), help="Where to write results")
