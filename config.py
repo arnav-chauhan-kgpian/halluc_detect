@@ -9,7 +9,7 @@ import torch
 @dataclass
 class PipelineConfig:
     # ── Model ──────────────────────────────────────────────────────────
-    model_name: str = "Qwen/Qwen3-8B-Instruct"
+    model_name: str = "Qwen/Qwen3-8B"
     max_new_tokens: int = 500
     torch_dtype: str = "bfloat16"
     device_map: str = "auto"
@@ -19,7 +19,7 @@ class PipelineConfig:
     do_sample: bool = True
 
     # ── Dataset ────────────────────────────────────────────────────────
-    dataset_name: str = "allenai/WildChat-1M"
+    dataset_name: str = "allenai/WildChat-4.8M-Full"
     dataset_split: str = "train"
     max_queries: int = 5000
     language_filter: str = "English"
