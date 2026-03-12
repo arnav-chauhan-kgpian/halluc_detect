@@ -17,7 +17,8 @@ class GenerationOutput:
 
     response_text: str
     generated_token_ids: torch.Tensor  # (num_tokens,)
-    hidden_states: torch.Tensor  # (num_tokens, num_layers, hidden_dim)
+    hidden_states: torch.Tensor  # (num_generated_tokens, num_layers+1, hidden_dim)
+    query_hidden_states: torch.Tensor  # (num_prompt_tokens, num_layers+1, hidden_dim)
 
 
 class Qwen3Wrapper:
@@ -72,12 +73,15 @@ class Qwen3Wrapper:
         response_text = self.tokenizer.decode(gen_ids, skip_special_tokens=True)
 
         # ── Pass 2: single forward pass for hidden states ─────────────
-        hidden_states = self._extract_hidden_states(full_seq.unsqueeze(0), prompt_len)
+        query_hidden_states, hidden_states = self._extract_hidden_states(
+            full_seq.unsqueeze(0), prompt_len
+        )
 
         return GenerationOutput(
             response_text=response_text,
             generated_token_ids=gen_ids.cpu(),
             hidden_states=hidden_states,
+            query_hidden_states=query_hidden_states,
         )
 
     # ------------------------------------------------------------------ #
@@ -114,17 +118,21 @@ class Qwen3Wrapper:
 
     def _extract_hidden_states(
         self, full_seq: torch.Tensor, prompt_len: int
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Run a single forward pass on the complete sequence and return
-        hidden states for the *generated* tokens only.
+        hidden states for both the *query/prompt* tokens and the *generated*
+        tokens.
 
         Args:
             full_seq: (1, total_len) – prompt + generated token ids.
-            prompt_len: number of prompt tokens to skip.
+            prompt_len: number of prompt tokens.
 
         Returns:
-            Tensor of shape ``(num_generated_tokens, num_layers + 1, hidden_dim)``
-            stored in ``cfg.save_torch_dtype`` on CPU.
+            A tuple of two tensors, each stored in ``cfg.save_torch_dtype``
+            on CPU:
+
+            - **query_hidden_states** – ``(num_prompt_tokens, num_layers + 1, hidden_dim)``
+            - **response_hidden_states** – ``(num_generated_tokens, num_layers + 1, hidden_dim)``
         """
         fwd_out = self.model(
             input_ids=full_seq,
@@ -133,12 +141,18 @@ class Qwen3Wrapper:
 
         # fwd_out.hidden_states: tuple of (num_layers+1) tensors,
         # each of shape (1, total_len, hidden_dim)
-        # Stack → (num_layers+1, num_gen_tokens, hidden_dim), then transpose
-        all_layers = torch.stack(
+        save_kwargs = dict(dtype=self.cfg.save_torch_dtype, device="cpu")
+
+        # Query (prompt) hidden states
+        query_layers = torch.stack(
+            [layer[0, :prompt_len, :] for layer in fwd_out.hidden_states]
+        )  # (num_layers+1, num_prompt_tokens, hidden_dim)
+        query_hs = query_layers.transpose(0, 1).contiguous().to(**save_kwargs)
+
+        # Response (generated) hidden states
+        response_layers = torch.stack(
             [layer[0, prompt_len:, :] for layer in fwd_out.hidden_states]
         )  # (num_layers+1, num_gen_tokens, hidden_dim)
+        response_hs = response_layers.transpose(0, 1).contiguous().to(**save_kwargs)
 
-        # Transpose to (num_gen_tokens, num_layers+1, hidden_dim)
-        result = all_layers.transpose(0, 1).contiguous()
-
-        return result.to(dtype=self.cfg.save_torch_dtype, device="cpu")
+        return query_hs, response_hs
