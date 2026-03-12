@@ -52,6 +52,7 @@ class GenerationPipeline:
                 response_text=output.response_text,
                 generated_token_ids=output.generated_token_ids,
                 hidden_states=output.hidden_states,
+                query_hidden_states=output.query_hidden_states,
             )
 
             if (idx + 1) % 100 == 0:
