@@ -56,6 +56,7 @@ class GenerationPipeline:
             )
 
             if (idx + 1) % 100 == 0:
+                storage.flush_metadata()
                 logger.info(
                     "Progress: %d / %d  (%.1f samples/min)",
                     idx + 1,
