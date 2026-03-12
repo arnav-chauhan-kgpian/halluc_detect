@@ -34,6 +34,7 @@ class ResultStorage:
         response_text: str,
         generated_token_ids: torch.Tensor,
         hidden_states: torch.Tensor,
+        query_hidden_states: torch.Tensor,
     ) -> None:
         """Persist one sample's hidden states and buffer metadata."""
         # Save hidden states + token ids as a .pt file
@@ -42,6 +43,7 @@ class ResultStorage:
             {
                 "query_id": query_id,
                 "hidden_states": hidden_states,
+                "query_hidden_states": query_hidden_states,
                 "generated_token_ids": generated_token_ids,
             },
             pt_path,
@@ -54,6 +56,7 @@ class ResultStorage:
                 "category": category,
                 "response_text": response_text,
                 "num_generated_tokens": len(generated_token_ids),
+                "num_prompt_tokens": query_hidden_states.shape[0],
                 "hidden_states_path": str(pt_path),
             }
         )
