@@ -84,10 +84,13 @@ def load_wildchat_queries(cfg: PipelineConfig) -> list[dict]:
     )
     ds = load_dataset(cfg.dataset_name, split=cfg.dataset_split)
 
-    queries: list[dict] = []
-    seen_hashes: set[str] = set()
+    # Filter dataset down to only the target conversation hashes very fast via arrow backend
+    logger.info("Filtering dataset to %d unique conversation hashes (using multiprocessing)...", len(seen_hashes))
+    ds = ds.filter(lambda x: x["conversation_hash"] in seen_hashes, num_proc=4)
+    logger.info("Filtered dataset down to %d candidate rows.", len(ds))
 
-    for row in ds:
+    seen_hashes.clear() # Reset for deduplication layer inside loop
+    for row in tqdm(ds, desc="Extracting target queries"):
         if len(queries) >= cfg.max_queries:
             break
 
