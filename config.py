@@ -10,6 +10,7 @@ import torch
 class PipelineConfig:
     # ── Model ──────────────────────────────────────────────────────────
     model_name: str = "Qwen/Qwen3-8B"
+    max_prompt_tokens: int = 4096
     max_new_tokens: int = 500
     torch_dtype: str = "bfloat16"
     device_map: str = "auto"
