@@ -5,6 +5,7 @@ import re
 from typing import Optional
 
 from datasets import load_dataset
+from tqdm import tqdm
 
 from config import PipelineConfig
 
@@ -74,61 +75,55 @@ def _classify_query(text: str, categories: list[str]) -> Optional[str]:
 
 
 def load_wildchat_queries(cfg: PipelineConfig) -> list[dict]:
-    """Download WildChat-1M and return filtered query dicts.
+    """Load queries from local final_5000_conversations.jsonl file.
 
     Each returned dict has keys:
         conversation_hash, query_text, category
     """
-    logger.info(
-        "Loading dataset %s (split=%s) …", cfg.dataset_name, cfg.dataset_split
-    )
-    ds = load_dataset(cfg.dataset_name, split=cfg.dataset_split)
+    import json
+    from pathlib import Path
+    
+    target_jsonl = Path(__file__).parent / "final_5000_conversations.jsonl"
+    logger.info("Loading queries from local file: %s", target_jsonl)
+    
+    queries = []
+    seen_hashes = set()
+    
+    if not target_jsonl.exists():
+        logger.error("File not found: %s", target_jsonl)
+        return queries
 
-    # Filter dataset down to only the target conversation hashes very fast via arrow backend
-    logger.info("Filtering dataset to %d unique conversation hashes (using multiprocessing)...", len(seen_hashes))
-    ds = ds.filter(lambda x: x["conversation_hash"] in seen_hashes, num_proc=4)
-    logger.info("Filtered dataset down to %d candidate rows.", len(ds))
-
-    seen_hashes.clear() # Reset for deduplication layer inside loop
-    for row in tqdm(ds, desc="Extracting target queries"):
-        if len(queries) >= cfg.max_queries:
-            break
-
-        # Language filter
-        lang = row.get("language", "")
-        if cfg.language_filter and lang != cfg.language_filter:
-            continue
-
-        # Deduplicate
-        conv_hash = row.get("conversation_hash", "")
-        if conv_hash in seen_hashes:
-            continue
-        seen_hashes.add(conv_hash)
-
-        # Extract the first user message
-        conversation = row.get("conversation", [])
-        if not conversation:
-            continue
-        first_user_msg = None
-        for msg in conversation:
-            if msg.get("role") == "user":
-                first_user_msg = msg["content"]
+    with open(target_jsonl, "r", encoding="utf-8") as f:
+        for line in tqdm(f, desc="Extracting queries from local jsonl"):
+            if not line.strip():
+                continue
+                
+            if len(queries) >= cfg.max_queries:
                 break
-        if not first_user_msg or len(first_user_msg.strip()) < 10:
-            continue
-
-        # Classify
-        category = _classify_query(first_user_msg, cfg.categories)
-        if category is None:
-            continue
-
-        queries.append(
-            {
-                "conversation_hash": conv_hash,
-                "query_text": first_user_msg.strip(),
-                "category": category,
-            }
-        )
+                
+            record = json.loads(line)
+            conv_hash = record.get("conversation_hash", "")
+            
+            if not conv_hash or conv_hash in seen_hashes:
+                continue
+            seen_hashes.add(conv_hash)
+            
+            # The JSONL already has 'query' extracted
+            query_text = record.get("query", "")
+            if not query_text or len(query_text.strip()) < 10:
+                continue
+                
+            category = _classify_query(query_text, cfg.categories)
+            if category is None:
+                continue
+                
+            queries.append(
+                {
+                    "conversation_hash": conv_hash,
+                    "query_text": query_text.strip(),
+                    "category": category,
+                }
+            )
 
     logger.info(
         "Loaded %d queries across categories: %s",
