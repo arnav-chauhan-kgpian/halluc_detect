@@ -71,6 +71,8 @@ class Qwen3Wrapper:
         full_seq = outputs[0]  # (total_len,)
         gen_ids = full_seq[prompt_len:]
         response_text = self.tokenizer.decode(gen_ids, skip_special_tokens=True)
+        
+        del outputs
 
         # ── Pass 2: single forward pass for hidden states ─────────────
         query_hidden_states, hidden_states = self._extract_hidden_states(
@@ -111,8 +113,11 @@ class Qwen3Wrapper:
             )
 
         encoded = self.tokenizer(
-            text, return_tensors="pt", padding=False, truncation=True
+            text, return_tensors="pt", padding=False, truncation=False
         )
+        if encoded.input_ids.shape[1] > self.cfg.max_prompt_tokens:
+            raise ValueError(f"Prompt length {encoded.input_ids.shape[1]} exceeds max_prompt_tokens ({self.cfg.max_prompt_tokens})")
+            
         device = self.model.device
         return encoded.input_ids.to(device), encoded.attention_mask.to(device)
 
