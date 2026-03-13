@@ -41,8 +41,11 @@ class GenerationPipeline:
 
             try:
                 output = model.generate(q["query_text"])
-            except Exception:
-                logger.exception("Failed on query %s – skipping.", query_id)
+            except Exception as e:
+                logger.exception("Failed on query %s – skipping. (%s)", query_id, type(e).__name__)
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
                 continue
 
             storage.save_sample(
