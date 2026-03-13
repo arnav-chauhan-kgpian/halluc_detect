@@ -75,8 +75,22 @@ class Qwen3Wrapper:
         del outputs
 
         # ── Pass 2: single forward pass for hidden states ─────────────
+        # Truncate the prompt portion to max_prompt_tokens before the
+        # forward pass so we don't OOM on very long prompts.
+        actual_prompt_len = min(prompt_len, self.cfg.max_prompt_tokens)
+        if prompt_len > self.cfg.max_prompt_tokens:
+            # Keep the LAST max_prompt_tokens of the prompt + all gen tokens
+            truncated_prompt = full_seq[prompt_len - actual_prompt_len : prompt_len]
+            truncated_seq = torch.cat([truncated_prompt, gen_ids]).unsqueeze(0)
+            logger.warning(
+                "Truncated Pass-2 prompt from %d to %d tokens for hidden-state extraction.",
+                prompt_len, actual_prompt_len,
+            )
+        else:
+            truncated_seq = full_seq.unsqueeze(0)
+
         query_hidden_states, hidden_states = self._extract_hidden_states(
-            full_seq.unsqueeze(0), prompt_len
+            truncated_seq, actual_prompt_len
         )
 
         return GenerationOutput(
