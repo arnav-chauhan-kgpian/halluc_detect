@@ -115,9 +115,6 @@ class Qwen3Wrapper:
         encoded = self.tokenizer(
             text, return_tensors="pt", padding=False, truncation=False
         )
-        if encoded.input_ids.shape[1] > self.cfg.max_prompt_tokens:
-            raise ValueError(f"Prompt length {encoded.input_ids.shape[1]} exceeds max_prompt_tokens ({self.cfg.max_prompt_tokens})")
-            
         device = self.model.device
         return encoded.input_ids.to(device), encoded.attention_mask.to(device)
 
@@ -149,9 +146,12 @@ class Qwen3Wrapper:
         save_kwargs = dict(dtype=self.cfg.save_torch_dtype, device="cpu")
 
         # Query (prompt) hidden states
+        # Truncate prompt hidden states to max_prompt_tokens if necessary to save memory
+        actual_prompt_len = min(prompt_len, self.cfg.max_prompt_tokens)
+        
         query_layers = torch.stack(
-            [layer[0, :prompt_len, :] for layer in fwd_out.hidden_states]
-        )  # (num_layers+1, num_prompt_tokens, hidden_dim)
+            [layer[0, :actual_prompt_len, :] for layer in fwd_out.hidden_states]
+        )  # (num_layers+1, actual_prompt_len, hidden_dim)
         query_hs = query_layers.transpose(0, 1).contiguous().to(**save_kwargs)
 
         # Response (generated) hidden states
