@@ -11,7 +11,6 @@ from config import PipelineConfig
 from data_loader import load_wildchat_queries
 from model_wrapper import Qwen3Wrapper
 from storage import ResultStorage
-from utils.similarity_analysis import run_similarity_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -68,22 +67,9 @@ class GenerationPipeline:
             query_id = q["conversation_hash"]
             query_text = q["query_text"]
 
-            # Heuristic context extraction
-            context = {}
-            func_match = re.search(r'def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', query_text)
-            if func_match:
-                context["func_name"] = func_match.group(1)
-            bin_match = re.search(r'BINARY_PATH\s*=\s*(?:r)?["\'](.*?)["\']', query_text)
-            if bin_match:
-                context["binary_path"] = bin_match.group(1)
-            asm_match = re.search(r'```(?:asm)?\n(.*?)\n```', query_text, re.DOTALL)
-            if asm_match:
-                context["original_asm"] = asm_match.group(1)
-
             try:
                 # ── Generation ──
                 output = model.generate(query_text)
-                metrics = run_similarity_analysis(output.response_text, query_text, context=context)
 
             except Exception as e:
                 logger.exception("Failed on query %s – skipping. (%s)", query_id, type(e).__name__)
@@ -97,7 +83,6 @@ class GenerationPipeline:
                 query_text=query_text,
                 category=q["category"],
                 response_text=output.response_text,
-                metrics=metrics,
             )
 
             if (idx + 1) % 100 == 0:

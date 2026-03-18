@@ -34,7 +34,6 @@ class ResultStorage:
         query_text: str,
         category: str,
         response_text: str,
-        metrics: dict | None = None,
     ) -> None:
         """Buffer metadata and response for the sample."""
         record = {
@@ -43,8 +42,6 @@ class ResultStorage:
             "category": category,
             "response_text": response_text,
         }
-        if metrics:
-            record.update(metrics)
             
         self._records.append(record)
         self._total_saved += 1
