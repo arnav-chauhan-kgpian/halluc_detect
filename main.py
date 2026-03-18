@@ -6,6 +6,7 @@ from pathlib import Path
 
 from config import PipelineConfig
 from pipeline import GenerationPipeline
+from utils import set_seed
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,6 +31,7 @@ def parse_args() -> argparse.Namespace:
         default=["url", "citation", "coding", "factual"],
         help="Query categories to include",
     )
+    p.add_argument("--data-path", type=Path, help="Path to local JSONL dataset")
     return p.parse_args()
 
 
@@ -41,6 +43,7 @@ def main():
     )
 
     args = parse_args()
+    set_seed(args.seed)
 
     cfg = PipelineConfig(
         model_name=args.model,
@@ -60,6 +63,7 @@ def main():
         output_dir=args.output_dir,
         batch_size=1,
         seed=args.seed,
+        data_path=args.data_path,
     )
 
     GenerationPipeline(cfg).run()

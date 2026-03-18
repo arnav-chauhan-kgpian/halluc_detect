@@ -26,7 +26,25 @@ class GenerationPipeline:
             logger.warning("No queries matched the filters – nothing to do.")
             return
 
-        # 2. Load model
+        # 2. Filter already processed queries (Resume support)
+        processed_ids = {
+            f.stem for f in self.cfg.hidden_states_dir.glob("*.pt")
+        }
+        if processed_ids:
+            original_count = len(queries)
+            queries = [q for q in queries if q["conversation_hash"] not in processed_ids]
+            logger.info(
+                "Resuming: found %d already processed samples. Remaining: %d / %d",
+                len(processed_ids),
+                len(queries),
+                original_count,
+            )
+        
+        if not queries:
+            logger.info("All queries already processed. Nothing to do.")
+            return
+
+        # 3. Load model
         model = Qwen3Wrapper(self.cfg)
 
         # 3. Prepare storage

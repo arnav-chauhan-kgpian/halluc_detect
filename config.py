@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 import torch
 
@@ -27,6 +28,7 @@ class PipelineConfig:
     categories: list[str] = field(
         default_factory=lambda: ["url", "citation", "coding", "factual"]
     )
+    data_path: Optional[Path] = None
 
     # ── Storage ────────────────────────────────────────────────────────
     output_dir: Path = Path("output")

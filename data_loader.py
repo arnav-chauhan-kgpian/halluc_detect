@@ -83,8 +83,12 @@ def load_wildchat_queries(cfg: PipelineConfig) -> list[dict]:
     import json
     from pathlib import Path
     
-    target_jsonl = Path(__file__).parent / "final_5000_conversations.jsonl"
-    logger.info("Loading queries from local file: %s", target_jsonl)
+    if cfg.data_path:
+        target_jsonl = Path(cfg.data_path)
+    else:
+        target_jsonl = Path(__file__).parent / "5000_convhash_labels.jsonl"
+    
+    logger.info("Loading queries from: %s", target_jsonl)
     
     queries = []
     seen_hashes = set()
