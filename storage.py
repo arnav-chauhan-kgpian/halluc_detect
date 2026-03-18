@@ -23,7 +23,6 @@ class ResultStorage:
 
         # Ensure output dirs exist
         cfg.output_dir.mkdir(parents=True, exist_ok=True)
-        cfg.hidden_states_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------ #
     #  Public API                                                         #
