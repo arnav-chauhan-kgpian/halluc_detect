@@ -71,7 +71,7 @@ def _classify_query(text: str, categories: list[str]) -> Optional[str]:
         for pat in patterns:
             if re.search(pat, text_lower):
                 return cat
-    return None
+    return "general"
 
 
 def load_wildchat_queries(cfg: PipelineConfig) -> list[dict]:
@@ -140,13 +140,13 @@ def load_wildchat_queries(cfg: PipelineConfig) -> list[dict]:
                 
             query_str = str(query_text).strip()
             category = _classify_query(query_str, cfg.categories)
-            if category:
-                queries.append({
-                    "conversation_hash": conv_hash,
-                    "query_text": query_str,
-                    "category": category,
-                })
-                seen_hashes.add(conv_hash)
+            
+            queries.append({
+                "conversation_hash": conv_hash,
+                "query_text": query_str,
+                "category": category,
+            })
+            seen_hashes.add(conv_hash)
 
     logger.info("Loaded %d queries from local file.", len(queries))
     return queries
