@@ -30,14 +30,21 @@ class GenerationPipeline:
             return
 
         # 2. Filter already processed queries (Resume support)
-        processed_ids = {
-            f.stem for f in self.cfg.hidden_states_dir.glob("*.pt")
-        }
+        parquet_path = self.cfg.output_dir / "results.parquet"
+        processed_ids = set()
+        if parquet_path.exists():
+            try:
+                import pandas as pd
+                df = pd.read_parquet(parquet_path)
+                processed_ids = set(df["query_id"].astype(str).tolist())
+            except Exception as e:
+                logger.warning("Failed to load existing results for resume support: %s", e)
+
         if processed_ids:
             original_count = len(queries)
             queries = [q for q in queries if q["conversation_hash"] not in processed_ids]
             logger.info(
-                "Resuming: found %d already processed samples. Remaining: %d / %d",
+                "Resuming: found %d already processed samples in results.parquet. Remaining: %d / %d",
                 len(processed_ids),
                 len(queries),
                 original_count,
@@ -90,8 +97,6 @@ class GenerationPipeline:
                     if metrics["cfg_similarity"] < 0.9:
                         feedback_prompt += "- Double-check control flow branches and logic paths.\n"
                     
-                    # For now, we just prepend feedback to the original query for a one-shot refinement
-                    # In a more advanced setup, we'd use a multi-turn conversation.
                     refined_query = f"{query_text}\n\n[FEEDBACK]\n{feedback_prompt}"
                     
                     refined_output = model.generate(refined_query)
@@ -115,9 +120,6 @@ class GenerationPipeline:
                 query_text=query_text,
                 category=q["category"],
                 response_text=output.response_text,
-                generated_token_ids=output.generated_token_ids,
-                hidden_states=output.hidden_states,
-                query_hidden_states=output.query_hidden_states,
                 metrics=metrics,
             )
 

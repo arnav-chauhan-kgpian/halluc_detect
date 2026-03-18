@@ -5,6 +5,9 @@ import torch
 
 def set_seed(seed: int):
     """Set seeds for reproducibility."""
+    # To avoid RuntimeError with deterministic algorithms on newer CUDA versions
+    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+    
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)

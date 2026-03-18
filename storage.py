@@ -35,33 +35,14 @@ class ResultStorage:
         query_text: str,
         category: str,
         response_text: str,
-        generated_token_ids: torch.Tensor,
-        hidden_states: torch.Tensor,
-        query_hidden_states: torch.Tensor,
         metrics: dict | None = None,
     ) -> None:
-        """Persist one sample's hidden states and buffer metadata."""
-        # Save hidden states + token ids as a .pt file
-        pt_path = self.cfg.hidden_states_dir / f"{query_id}.pt"
-        torch.save(
-            {
-                "query_id": query_id,
-                "hidden_states": hidden_states,
-                "query_hidden_states": query_hidden_states,
-                "generated_token_ids": generated_token_ids,
-                "metrics": metrics,
-            },
-            pt_path,
-        )
-
+        """Buffer metadata and response for the sample."""
         record = {
             "query_id": query_id,
             "query_text": query_text,
             "category": category,
             "response_text": response_text,
-            "num_generated_tokens": len(generated_token_ids),
-            "num_prompt_tokens": query_hidden_states.shape[0],
-            "hidden_states_path": str(pt_path),
         }
         if metrics:
             record.update(metrics)

@@ -11,14 +11,13 @@ from utils import set_seed
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Generate Qwen3-8B responses + hidden states for WildChat queries."
+        description="Generate Qwen3-8B responses for WildChat queries."
     )
     p.add_argument("--model", default="Qwen/Qwen3-8B", help="HF model id")
     p.add_argument("--max-queries", type=int, default=5000, help="Max queries to process")
     p.add_argument("--max-new-tokens", type=int, default=500, help="Max generation length")
     p.add_argument("--output-dir", type=Path, default=Path("output"), help="Where to write results")
     p.add_argument("--dtype", default="bfloat16", choices=["float16", "bfloat16", "float32"])
-    p.add_argument("--save-dtype", default="float16", choices=["float16", "bfloat16", "float32"])
     p.add_argument("--temperature", type=float, default=0.7)
     p.add_argument("--top-p", type=float, default=0.9)
     p.add_argument("--no-sample", action="store_true", help="Use greedy decoding")
@@ -49,7 +48,6 @@ def main():
         model_name=args.model,
         max_new_tokens=args.max_new_tokens,
         torch_dtype=args.dtype,
-        save_dtype=args.save_dtype,
         device_map="auto",
         enable_thinking=args.enable_thinking,
         temperature=args.temperature,
