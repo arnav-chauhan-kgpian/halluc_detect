@@ -1,7 +1,9 @@
+from __future__ import annotations
 """Storage utilities – save responses as Parquet + hidden states as .pt files."""
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 import torch
@@ -36,7 +38,7 @@ class ResultStorage:
         generated_token_ids: torch.Tensor,
         hidden_states: torch.Tensor,
         query_hidden_states: torch.Tensor,
-        metrics: Optional[dict] = None,
+        metrics: dict | None = None,
     ) -> None:
         """Persist one sample's hidden states and buffer metadata."""
         # Save hidden states + token ids as a .pt file
