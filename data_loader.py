@@ -100,53 +100,59 @@ def load_wildchat_queries(cfg: PipelineConfig) -> list[dict]:
     seen_hashes = set()
 
     with open(target_jsonl, "r", encoding="utf-8") as f:
-        # Some JSONL files might be formatted with multiple lines per record (though rare)
-        # We'll try to handle standard JSONL (one record per line)
-        for line_num, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-            if len(queries) >= cfg.max_queries:
-                break
-                
-            record = None
+        # Load all lines into memory and reverse if requested
+        all_lines = f.readlines()
+    
+    if cfg.load_reverse:
+        # Reverse the list of lines to prioritize the end of the file
+        all_lines = all_lines[::-1]
+        logger.info("Reversing query loading order (end to top).")
+
+    for line_num, line in enumerate(all_lines, 1):
+        line = line.strip()
+        if not line:
+            continue
+        if len(queries) >= cfg.max_queries:
+            break
+            
+        record = None
+        try:
+            # Try standard JSON first
+            record = json.loads(line)
+        except json.JSONDecodeError:
             try:
-                # Try standard JSON first
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                try:
-                    # Try Python literal (common in some exported datasets)
-                    record = ast.literal_eval(line)
-                except Exception as e:
-                    logger.warning("Line %d: Failed to parse record: %s", line_num, e)
-                    continue
-
-            if not record:
+                # Try Python literal (common in some exported datasets)
+                record = ast.literal_eval(line)
+            except Exception as e:
+                logger.warning("Line %d: Failed to parse record: %s", line_num, e)
                 continue
 
-            conv_hash = record.get("conversation_hash")
-            if not conv_hash or conv_hash in seen_hashes:
-                continue
+        if not record:
+            continue
+
+        conv_hash = record.get("conversation_hash")
+        if not conv_hash or conv_hash in seen_hashes:
+            continue
+        
+        # Use 'query' (Kaggle format) or 'query_text' (current pipeline format)
+        query_text = record.get("query") or record.get("query_text", "")
+        
+        # Handle cases where the query might be a list or other structure
+        if isinstance(query_text, list) and query_text:
+            query_text = query_text[0]
+        
+        if not query_text or len(str(query_text).strip()) < 10:
+            continue
             
-            # Use 'query' (Kaggle format) or 'query_text' (current pipeline format)
-            query_text = record.get("query") or record.get("query_text", "")
-            
-            # Handle cases where the query might be a list or other structure
-            if isinstance(query_text, list) and query_text:
-                query_text = query_text[0]
-            
-            if not query_text or len(str(query_text).strip()) < 10:
-                continue
-                
-            query_str = str(query_text).strip()
-            category = _classify_query(query_str, cfg.categories)
-            
-            queries.append({
-                "conversation_hash": conv_hash,
-                "query_text": query_str,
-                "category": category,
-            })
-            seen_hashes.add(conv_hash)
+        query_str = str(query_text).strip()
+        category = _classify_query(query_str, cfg.categories)
+        
+        queries.append({
+            "conversation_hash": conv_hash,
+            "query_text": query_str,
+            "category": category,
+        })
+        seen_hashes.add(conv_hash)
 
     logger.info("Loaded %d queries from local file.", len(queries))
     return queries

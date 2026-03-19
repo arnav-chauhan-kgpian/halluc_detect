@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
         help="Query categories to include",
     )
     p.add_argument("--data-path", type=Path, help="Path to local JSONL dataset")
+    p.add_argument("--reverse", action="store_true", help="Load queries from end to top")
     return p.parse_args()
 
 
@@ -62,6 +63,7 @@ def main():
         batch_size=1,
         seed=args.seed,
         data_path=args.data_path,
+        load_reverse=args.reverse,
     )
 
     GenerationPipeline(cfg).run()

@@ -28,6 +28,7 @@ class PipelineConfig:
         default_factory=lambda: ["url", "citation", "coding", "factual"]
     )
     data_path: Optional[Path] = None
+    load_reverse: bool = False
 
     # ── Storage ────────────────────────────────────────────────────────
     output_dir: Path = Path("output")
