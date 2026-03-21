@@ -50,24 +50,17 @@ class Qwen3Wrapper:
 
     @torch.no_grad()
     def generate_batch(self, queries: list[str]) -> list[GenerationOutput]:
-        """Generate responses for a batch of queries (optimized & batched)."""
+        """Generate responses for a batch of queries (stable & batched)."""
         input_ids, attention_mask = self._prepare_batch_input(queries)
         batch_size = input_ids.shape[0]
         prompt_len = input_ids.shape[1]
 
-        # 1. Forward pass for the prompt batch (gets hidden states + PKV)
-        prompt_out = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            output_hidden_states=True,
-            use_cache=True,
-        )
-        
-        # 2. Generate response batch using the PKV
+        # Pass 1: Generate response batch + response hidden states
+        # We don't pass PKV here to ensure stability across library versions.
+        # But we capture hidden states for the NEW tokens.
         gen_outputs = self.model.generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            past_key_values=prompt_out.past_key_values,
             max_new_tokens=self.cfg.max_new_tokens,
             do_sample=self.cfg.do_sample,
             temperature=self.cfg.temperature,
@@ -76,29 +69,33 @@ class Qwen3Wrapper:
             return_dict_in_generate=True,
         )
 
+        # Pass 2: Forward pass on prompt batch to get prompt hidden states
+        # This is fast (parallel) and much more stable than PKV injection.
+        prompt_out = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+        )
+
         # 3. Post-process each sample in the batch
         results = []
         for i in range(batch_size):
-            # Sequence: gen_outputs.sequences is (batch_size, total_len)
             full_seq = gen_outputs.sequences[i]
-            # Need to find where the actual sequence ends (if padding was on the right)
-            # But here we used left-padding for generation
-            # Actually, for decoder-only, left-padding is used for generate.
-            # prompt_len is the same for all because of padding.
+            # Since we used left-padding for generation, the actual sequence might vary
+            # but transformers handles the prompt_len offset correctly.
             gen_ids = full_seq[prompt_len:]
             response_text = self.tokenizer.decode(gen_ids, skip_special_tokens=True)
 
             # Capture prompt hidden states for sample i
             # prompt_out.hidden_states is (num_layers+1, batch_size, prompt_len, hidden_dim)
-            prompt_hs_i = torch.stack(prompt_out.hidden_states)[:, i, :, :] # (num_layers+1, prompt_len, hidden_dim)
+            prompt_hs_i = torch.stack(prompt_out.hidden_states)[:, i, :, :]
             prompt_hs_i = prompt_hs_i.transpose(0, 1).contiguous().cpu() # (prompt_len, num_layers+1, hidden_dim)
 
             # Capture response hidden states for sample i
-            # gen_outputs.hidden_states is a tuple of (num_gen_tokens)
-            # Each element is a tuple of (num_layers+1) tensors of (batch_size, 1, hidden_dim)
             if hasattr(gen_outputs, "hidden_states") and gen_outputs.hidden_states:
                 res_hs_list = []
                 for step_hs in gen_outputs.hidden_states:
+                    # step_hs is a tuple of (num_layers+1) tensors of (batch_size, 1, hidden_dim)
                     step_tensor_i = torch.stack(step_hs)[:, i, 0, :] # (num_layers+1, hidden_dim)
                     res_hs_list.append(step_tensor_i)
                 response_hs_i = torch.stack(res_hs_list).cpu()
