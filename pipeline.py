@@ -11,6 +11,7 @@ from config import PipelineConfig
 from data_loader import load_wildchat_queries
 from model_wrapper import Qwen3Wrapper
 from storage import ResultStorage
+from utils import set_seed
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,9 @@ class GenerationPipeline:
             query_text = q["query_text"]
 
             try:
+                # ── Per-Sample Seeding ──
+                set_seed(self.cfg.seed)
+
                 # ── Generation ──
                 output = model.generate(query_text)
 
