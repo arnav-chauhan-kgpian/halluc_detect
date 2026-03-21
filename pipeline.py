@@ -61,41 +61,53 @@ class GenerationPipeline:
         storage = ResultStorage(self.cfg)
 
         # 4. Generate
-        logger.info("Starting generation for %d queries …", len(queries))
+        batch_size = self.cfg.batch_size
+        logger.info("Starting generation for %d queries (Batch size: %d) …", len(queries), batch_size)
         start = time.time()
 
-        for idx, q in enumerate(tqdm(queries, desc="Generating")):
-            query_id = q["conversation_hash"]
-            query_text = q["query_text"]
-
+        for i in range(0, len(queries), batch_size):
+            batch_queries = queries[i : i + batch_size]
+            query_texts = [q["query_text"] for q in batch_queries]
+            
             try:
                 # ── Per-Sample Seeding ──
-                set_seed(self.cfg.seed)
+                # For batched runs, we set the seed once per batch for simplicity, 
+                # or use salted seeding per sample if needed. 
+                # Here we use salted seeding for absolute consistency.
+                for idx_in_batch in range(len(batch_queries)):
+                    set_seed(self.cfg.seed + i + idx_in_batch)
 
                 # ── Generation ──
-                output = model.generate(query_text)
+                batch_outputs = model.generate_batch(query_texts)
 
             except Exception as e:
-                logger.exception("Failed on query %s – skipping. (%s)", query_id, type(e).__name__)
+                logger.exception("Failed on batch starting at index %d – skipping. (%s)", i, type(e).__name__)
                 import torch
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                 continue
 
-            storage.save_sample(
-                query_id=query_id,
-                query_text=query_text,
-                category=q["category"],
-                response_text=output.response_text,
-            )
+            for idx_in_batch, output in enumerate(batch_outputs):
+                q = batch_queries[idx_in_batch]
+                storage.save_sample(
+                    query_id=q["conversation_hash"],
+                    query_text=q["query_text"],
+                    category=q["category"],
+                    response_text=output.response_text,
+                    generated_token_ids=output.generated_token_ids,
+                    query_hidden_states=output.query_hidden_states,
+                    response_hidden_states=output.response_hidden_states,
+                )
 
-            if (idx + 1) % 100 == 0:
+            current_total = i + len(batch_queries)
+            if current_total % 100 == 0 or current_total == len(queries):
                 storage.flush_metadata()
+                elapsed_min = (time.time() - start) / 60
                 logger.info(
                     "Progress: %d / %d  (%.1f samples/min)",
-                    idx + 1,
+                    current_total,
                     len(queries),
-                    (idx + 1) / ((time.time() - start) / 60),
+                    current_total / max(elapsed_min, 0.001),
                 )
 
         # 5. Flush metadata
