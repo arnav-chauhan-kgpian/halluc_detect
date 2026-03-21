@@ -95,8 +95,6 @@ class GenerationPipeline:
                     category=q["category"],
                     response_text=output.response_text,
                     generated_token_ids=output.generated_token_ids,
-                    query_hidden_states=output.query_hidden_states,
-                    response_hidden_states=output.response_hidden_states,
                 )
 
             current_total = i + len(batch_queries)
