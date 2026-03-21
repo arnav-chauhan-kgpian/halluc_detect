@@ -35,31 +35,14 @@ class ResultStorage:
         category: str,
         response_text: str,
         generated_token_ids: torch.Tensor,
-        query_hidden_states: torch.Tensor,
-        response_hidden_states: torch.Tensor,
     ) -> None:
-        """Save hidden states to .pt and buffer metadata."""
-        # 1. Save hidden states to .pt file
-        hidden_states_dir = self.cfg.output_dir / "hidden_states"
-        hidden_states_dir.mkdir(parents=True, exist_ok=True)
-        pt_path = hidden_states_dir / f"{query_id}.pt"
-        
-        torch.save({
-            "query_id": query_id,
-            "generated_token_ids": generated_token_ids,
-            "query_hidden_states": query_hidden_states,
-            "hidden_states": response_hidden_states, # Keep 'hidden_states' name for compatibility
-        }, pt_path)
-
-        # 2. Buffer metadata
+        """Buffer metadata and response for the sample."""
         record = {
             "query_id": query_id,
             "query_text": query_text,
             "category": category,
             "response_text": response_text,
             "num_generated_tokens": len(generated_token_ids),
-            "num_prompt_tokens": query_hidden_states.shape[0],
-            "hidden_states_path": str(pt_path),
         }
             
         self._records.append(record)
