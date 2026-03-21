@@ -32,6 +32,7 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--data-path", type=Path, help="Path to local JSONL dataset")
     p.add_argument("--reverse", action="store_true", help="Load queries from end to top")
+    p.add_argument("--batch-size", type=int, default=4, help="Batch size for generation")
     return p.parse_args()
 
 
@@ -60,7 +61,7 @@ def main():
         language_filter=args.language,
         categories=args.categories,
         output_dir=args.output_dir,
-        batch_size=1,
+        batch_size=args.batch_size,
         seed=args.seed,
         data_path=args.data_path,
         load_reverse=args.reverse,
