@@ -130,21 +130,26 @@ def load_wildchat_queries(cfg: PipelineConfig) -> list[dict]:
         if not record:
             continue
 
-        conv_hash = record.get("conversation_hash")
-        if not conv_hash or conv_hash in seen_hashes:
-            continue
-        
         # Use 'query' (Kaggle format) or 'query_text' (current pipeline format)
         query_text = record.get("query") or record.get("query_text", "")
         
         # Handle cases where the query might be a list or other structure
         if isinstance(query_text, list) and query_text:
             query_text = query_text[0]
-        
+            
         if not query_text or len(str(query_text).strip()) < 10:
             continue
             
         query_str = str(query_text).strip()
+
+        conv_hash = record.get("conversation_hash")
+        if not conv_hash:
+            import hashlib
+            conv_hash = hashlib.md5(query_str.encode("utf-8")).hexdigest()
+            
+        if conv_hash in seen_hashes:
+            continue
+            
         category = _classify_query(query_str, cfg.categories)
         
         queries.append({
