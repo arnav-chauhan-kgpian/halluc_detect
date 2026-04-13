@@ -35,6 +35,7 @@ class ResultStorage:
         category: str,
         response_text: str,
         generated_token_ids: torch.Tensor,
+        original_record: Optional[dict] = None,
     ) -> None:
         """Buffer metadata and response for the sample."""
         record = {
@@ -44,13 +45,20 @@ class ResultStorage:
             "response_text": response_text,
             "num_generated_tokens": len(generated_token_ids),
         }
+        
+        if original_record:
+            for k, v in original_record.items():
+                if k not in record:
+                    record[k] = v
             
         self._records.append(record)
         self._total_saved += 1
 
     def flush_metadata(self) -> Path:
-        """Write accumulated metadata to a Parquet file and return its path."""
+        """Write accumulated metadata to a Parquet file and returning its path."""
         parquet_path = self.cfg.output_dir / "results.parquet"
+        jsonl_path = self.cfg.output_dir / "results.jsonl"
+        
         if not self._records:
             return parquet_path
             
@@ -60,10 +68,12 @@ class ResultStorage:
             df_combined = pd.concat([df_old, df_new], ignore_index=True)
             df_combined = df_combined.drop_duplicates(subset="query_id", keep="last")
             df_combined.to_parquet(parquet_path, index=False)
-            logger.info("Merged metadata for %d new samples \u2192 %s (Total rows: %d)", len(self._records), parquet_path, len(df_combined))
+            df_combined.to_json(jsonl_path, orient="records", lines=True)
+            logger.info("Merged metadata for %d new samples \u2192 %s and %s (Total rows: %d)", len(self._records), parquet_path, jsonl_path, len(df_combined))
         else:
             df_new.to_parquet(parquet_path, index=False)
-            logger.info("Saved initial metadata for %d samples \u2192 %s", len(self._records), parquet_path)
+            df_new.to_json(jsonl_path, orient="records", lines=True)
+            logger.info("Saved initial metadata for %d samples \u2192 %s and %s", len(self._records), parquet_path, jsonl_path)
             
         self._records = []
         return parquet_path
