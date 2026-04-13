@@ -74,8 +74,7 @@ class GenerationPipeline:
                 # For batched runs, we set the seed once per batch for simplicity, 
                 # or use salted seeding per sample if needed. 
                 # Here we use salted seeding for absolute consistency.
-                for idx_in_batch in range(len(batch_queries)):
-                    set_seed(self.cfg.seed + i + idx_in_batch)
+                set_seed(self.cfg.seed)
 
                 # ── Generation ──
                 batch_outputs = model.generate_batch(query_texts)
@@ -95,6 +94,7 @@ class GenerationPipeline:
                     category=q["category"],
                     response_text=output.response_text,
                     generated_token_ids=output.generated_token_ids,
+                    original_record=q.get("original_record"),
                 )
 
             current_total = i + len(batch_queries)
