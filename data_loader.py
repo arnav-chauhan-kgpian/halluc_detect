@@ -156,6 +156,7 @@ def load_wildchat_queries(cfg: PipelineConfig) -> list[dict]:
             "conversation_hash": conv_hash,
             "query_text": query_str,
             "category": category,
+            "original_record": record,
         })
         seen_hashes.add(conv_hash)
 
